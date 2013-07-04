@@ -18,6 +18,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <linux/clk.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/module.h>
@@ -39,6 +40,7 @@
 #include "board-olympus.h"
 #include "gpio-names.h"
 
+#define WLAN_WOW_GPIO 		TEGRA_GPIO_PU1
 #define WLAN_RESET_GPIO 	TEGRA_GPIO_PU2
 #define WLAN_REG_ON_GPIO 	TEGRA_GPIO_PU3
 #define WLAN_IRQ_GPIO 		TEGRA_GPIO_PU5
@@ -53,6 +55,8 @@
 #define WLAN_SECTION_SIZE_3     (PREALLOC_WLAN_NUMBER_OF_BUFFERS * 1024)
 
 #define WLAN_SKB_BUF_NUM        16
+
+static struct clk *wifi_32k_clk;
 
 static bool wlan_ctrl_ready = false;
 
@@ -194,6 +198,11 @@ int olympus_wifi_status_register(
 
  int olympus_wifi_power(int on)
  {
+	if (on)
+			clk_enable(wifi_32k_clk);
+	else
+			clk_disable(wifi_32k_clk);
+
 	pr_debug("%s: %d\n", __func__, on);
 	gpio_set_value(WLAN_REG_ON_GPIO, on);
 	mdelay(100);
@@ -257,7 +266,7 @@ int olympus_wifi_status_register(
 	pr_debug("%s Enter\n", __func__);
 
 	tegra_gpio_enable(WLAN_RESET_GPIO);
-	ret = gpio_request(WLAN_RESET_GPIO, "wlan_reset_pin");
+	ret = gpio_request(WLAN_RESET_GPIO, "wlan_rst");
 	if (ret)
 		pr_err("%s: %d gpio_reqest reset\n", __func__, ret);
 	else
@@ -268,7 +277,7 @@ int olympus_wifi_status_register(
 	}
 
 	tegra_gpio_enable(WLAN_REG_ON_GPIO);
-	ret = gpio_request(WLAN_REG_ON_GPIO, "wlan_reg_on_pin");
+	ret = gpio_request(WLAN_REG_ON_GPIO, "wlan_power");
 	if (ret)
 		pr_err("%s: Err %d gpio_reqest reg\n", __func__, ret);
 	 else
@@ -279,15 +288,25 @@ int olympus_wifi_status_register(
 	}
 
 	tegra_gpio_enable(WLAN_IRQ_GPIO);
-	ret = gpio_request(WLAN_IRQ_GPIO, "wlan_irq_pin");
+		ret = gpio_request(WLAN_IRQ_GPIO, "wlan_irq");
+		if (ret)
+			pr_err("%s: Error (%d) - gpio_reqest irq\n", __func__, ret);
+		else
+			ret = gpio_direction_input(WLAN_IRQ_GPIO);
+		if (ret) {
+			pr_err("%s: Err %d gpio_direction irq\n", __func__, ret);
+			return -1;
+		}
+
+/*	ret = gpio_request(WLAN_WOW_GPIO, "bcmsdh_sdmmc");
 	if (ret)
-		pr_err("%s: Error (%d) - gpio_reqest irq\n", __func__, ret);
+		pr_err("%s: Error (%d) - gpio_reqest wow\n", __func__, ret);
 	else
-		ret = gpio_direction_input(WLAN_IRQ_GPIO);
+		ret = gpio_direction_input(WLAN_WOW_GPIO);
 	if (ret) {
-		pr_err("%s: Err %d gpio_direction irq\n", __func__, ret);
+		pr_err("%s: Err %d gpio_direction wow\n", __func__, ret);
 		return -1;
-	}
+	}*/
 	return 0;
  }
 
@@ -295,6 +314,12 @@ int olympus_wifi_status_register(
  {
 	int ret;
 	pr_debug("%s: start\n", __func__);
+	wifi_32k_clk = clk_get_sys(NULL, "blink");
+	if (IS_ERR(wifi_32k_clk)) {
+		pr_err("%s: unable to get blink clock\n", __func__);
+		return PTR_ERR(wifi_32k_clk);
+	}
+		clk_enable(wifi_32k_clk);
 	olympus_wlan_gpio_init();
 	olympus_init_wifi_mem();
 	olympus_locales_table_ptr = olympus_locales_table;
@@ -303,53 +328,6 @@ int olympus_wifi_status_register(
 	wlan_ctrl_ready = (ret == 0);
 	return ret;
  }
-
-#ifdef CONFIG_WIFI_CONTROL_EXPORT
-
- void bcm_wlan_power_on(int mode)
- {
-	if (0 == wlan_ctrl_ready) {
-		pr_err("%s WLAN control not ready\n", __func__);
-		return;
-	}
-	gpio_set_value(WLAN_REG_ON_GPIO, 0x1);
-	msleep_interruptible(100);
-	gpio_set_value(WLAN_RESET_GPIO, 0x1);
-	msleep_interruptible(100);
-	if (1 == mode){
-		sdhci_tegra_wlan_detect();
-		msleep_interruptible(100);
-	}
- }
- EXPORT_SYMBOL(bcm_wlan_power_on);
-
- void bcm_wlan_power_off(int mode)
- {
-	if (0 == wlan_ctrl_ready) {
-		pr_err("%s WLAN control not ready\n", __func__);
-		return;
-	}
-	gpio_set_value(WLAN_RESET_GPIO, 0x0);
-	msleep_interruptible(100);
-	gpio_set_value(WLAN_REG_ON_GPIO, 0x0);
-	msleep_interruptible(100);
-	if (1 == mode){
-		sdhci_tegra_wlan_detect();
-		msleep_interruptible(100);
-	}
- }
- EXPORT_SYMBOL(bcm_wlan_power_off);
-
- int bcm_wlan_get_irq(void)
- {
-	return gpio_to_irq(WLAN_IRQ_GPIO);
- }
- EXPORT_SYMBOL(bcm_wlan_get_irq);
-
- char *bcm_wlan_mac = olympus_wlan_mac;
- EXPORT_SYMBOL(bcm_wlan_mac);
-
-#endif /*  CONFIG_WIFI_CONTROL_EXPORT */
 
  /*
   * Parse the WLAN MAC ATAG

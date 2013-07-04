@@ -82,7 +82,7 @@ static char oly_unused_pins_p3[] = {
         TEGRA_GPIO_PW1,
         TEGRA_GPIO_PB3,
         TEGRA_GPIO_PJ3,
-        /* TEGRA_GPIO_PE5, (used by ...)*/
+        TEGRA_GPIO_PE5,/* (is it used by temp sensor??)*/
         TEGRA_GPIO_PE6,
         TEGRA_GPIO_PE7,
         TEGRA_GPIO_PF0,
@@ -276,19 +276,7 @@ static char oly_unused_pins_p1[] = {
         TEGRA_GPIO_PT6,
         TEGRA_GPIO_PC7,
         TEGRA_GPIO_PV7,
-        TEGRA_GPIO_PD1,
-};
-
-static __initdata struct tegra_clk_init_table olympus_clk_init_table[] = {
-	/* name		parent		rate		enabled */  
-	{"sbc1",	"pll_c",	60000000,	true},
-	{"sbc2",	"pll_c",	60000000,	true},
-	{"pwm",		"clk_32k",	32768,		false},
-	{"kbc",		"clk_32k",	32768,		true},
-	{"sdmmc2",	"pll_p",	25000000,	false},
-	{"i2s1",	"pll_a_out0",	0,		false},
-	{"spdif_out",	"pll_a_out0",	0,		false},
-	{ NULL,		NULL,		0,		0},
+        TEGRA_GPIO_PD1, 
 };
 
 static struct resource olympus_bcm4329_rfkill_resources[] = {
@@ -327,9 +315,15 @@ static struct platform_device olympus_bcm4329_rfkill_device = {
 
 static noinline void __init olympus_bt_rfkill(void)
 {
+	clk_add_alias("bcm4329_32k_clk", olympus_bcm4329_rfkill_device.name, \
+					"blink", NULL);
+
 	olympus_bcm4329_rfkill_resources[0].start =
 		olympus_bcm4329_rfkill_resources[0].end = TEGRA_GPIO_PU4;
 	printk("%s: registering bcm4329_rfkill device...\n", __func__);
+
+	tegra_gpio_enable(TEGRA_GPIO_PU1);
+	tegra_gpio_enable(TEGRA_GPIO_PU6);
 
 	platform_device_register(&olympus_bcm4329_rfkill_device);
 	return;
@@ -388,10 +382,9 @@ static int config_unused_pins(char *pins, int num)
 
 static void __init tegra_olympus_init(void)
 {
-	
-	tegra_clk_init_from_table(olympus_clk_init_table);
+	olympus_clks_init();
 
-	tegra_ram_console_debug_init();
+	//tegra_ram_console_debug_init();
 
 	olympus_pinmux_init();
 
@@ -436,19 +429,17 @@ static void __init tegra_olympus_init(void)
 	olympus_wlan_init();
 
 	olympus_w1_init();
-	
-	//tegra_setup_bluesleep();
 
 	/* Configure SPDIF_OUT as GPIO by default, it can be later controlled
 	   as needed. When SPDIF_OUT is enabled and if HDMI is connected, it
 	   can interefere with CPCAP ID pin, as SPDIF_OUT and ID are coupled.
 	*/
-/*
+
 	tegra_gpio_enable(TEGRA_GPIO_PD4);
 	gpio_request(TEGRA_GPIO_PD4, "spdif_enable");
 	gpio_direction_output(TEGRA_GPIO_PD4, 0);
 	gpio_export(TEGRA_GPIO_PD4, false);
-*/
+
 	if ((HWREV_TYPE_IS_PORTABLE(system_rev) || HWREV_TYPE_IS_FINAL(system_rev)))
 		{
 			if (HWREV_REV(system_rev) >= HWREV_REV_1 && HWREV_REV(system_rev) < HWREV_REV_2)
@@ -541,7 +532,8 @@ void __init tegra_olympus_reserve(void)
 		pr_warn("Cannot reserve first 4K of memory for safety\n");
 
 	tegra_reserve(SZ_128M + SZ_64M, SZ_8M, SZ_8M);
-	tegra_ram_console_debug_reserve(SZ_1M);
+	//tegra_reserve(SZ_256M, SZ_16M, SZ_16M);
+	//tegra_ram_console_debug_reserve(SZ_1M);
 
 }
 

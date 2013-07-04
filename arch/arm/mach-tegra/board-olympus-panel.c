@@ -43,6 +43,7 @@
 
 #include "board.h"
 #include "board-olympus.h"
+#include "cpu-tegra.h"
 #include "devices.h"
 #include "gpio-names.h"
 #include "fuse.h"
@@ -130,7 +131,7 @@ static struct resource olympus_disp2_resources[] = {
 
 static struct tegra_dc_mode olympus_panel_modes[] = {
 	{
-		.pclk = 27000000,
+		.pclk = 30456000, //27000000 (pixclock for 50 refresh rate)
 		.h_ref_to_sync = 4,
 		.v_ref_to_sync = 1,
 		.h_sync_width = 16,
@@ -217,14 +218,6 @@ static struct tegra_dsi_cmd dsi_olympus_init_cmd[]= {
 	DSI_DLY_MS(20),
 };
 
-
-static struct tegra_dsi_cmd dsi_generic_init_cmd[]= {
-	DSI_CMD_SHORT(0x05, 0x11, 0x00),
-	DSI_DLY_MS(150), 
-	DSI_CMD_SHORT(0x05, 0x29, 0x00),
-	DSI_DLY_MS(20),
-};
-
 static struct tegra_dsi_cmd dsi_suspend_cmd[] = {
 	DSI_CMD_SHORT(0x05, 0x10, 0x00),
 	DSI_CMD_SHORT(0x05, 0x28, 0x00),
@@ -271,10 +264,10 @@ static int olympus_panel_enable(void)
 
 	printk(KERN_INFO "%s: TEGRA_GPIO_PF7 = 1",__func__);
 	gpio_set_value(TEGRA_GPIO_PF7,1);
-	mdelay(200);
+	msleep_interruptible(50);
 	printk(KERN_INFO "%s: TEGRA_GPIO_PE3 = 1",__func__);
 	gpio_set_value(TEGRA_GPIO_PE3, 1);
-	mdelay(25);
+	msleep_interruptible(25);
 
 	return 0;
 }
@@ -283,9 +276,10 @@ static int olympus_panel_disable(void)
 {
 	int ret;
 
+	msleep_interruptible(25);
 	printk(KERN_INFO "%s: TEGRA_GPIO_PE3 = 0",__func__);
 	gpio_set_value(TEGRA_GPIO_PE3, 0);
-	mdelay(25);
+	msleep_interruptible(25);
 	printk(KERN_INFO "%s: TEGRA_GPIO_PF7 = 0",__func__);
 	gpio_set_value(TEGRA_GPIO_PF7, 0);
 
@@ -314,6 +308,7 @@ static int olympus_panel_disable(void)
 		printk(KERN_INFO "%s: DSI regulator SW5 disabled\n",__func__);
 	}
 
+
 	return 0;
 }
 
@@ -328,36 +323,18 @@ static struct tegra_dsi_out olympus_dsi_out = {
 		.t_clkpost_ns = 10,
 		//.t_clkzero_ns = 13,
 		.t_clkzero_ns = 10,  //WAR
-		.t_tlpx_ns =  2,
+		.t_tlpx_ns =  3,
 	},
 };*/
 
 static struct tegra_dsi_out olympus_dsi_out = {
 		.dsi_instance = 0,
 		.n_data_lanes = 2,
-		.refresh_rate = 64,
-		.lp_cmd_mode_freq_khz = 229500,
-		.panel_reset = true,	/* resend the init sequence on each resume */
-		.panel_reset_timeout_msec = 202,
-		.panel_has_frame_buffer = true,
-		.power_saving_suspend = true,	/* completely shutdown the panel */
-		.pixel_format = TEGRA_DSI_PIXEL_FORMAT_24BIT_P,
-		.video_burst_mode = TEGRA_DSI_VIDEO_NONE_BURST_MODE,
-		.video_clock_mode = TEGRA_DSI_VIDEO_CLOCK_TX_ONLY,
-		.video_data_type = TEGRA_DSI_VIDEO_TYPE_COMMAND_MODE,
-		.virtual_channel = TEGRA_DSI_VIRTUAL_CHANNEL_0,
-		.dsi_init_cmd = dsi_olympus_init_cmd,
-		.n_init_cmd = ARRAY_SIZE(dsi_olympus_init_cmd),
-		.dsi_suspend_cmd = dsi_suspend_cmd,
-		.n_suspend_cmd = ARRAY_SIZE(dsi_suspend_cmd),
-		//.phy_timing = ???,
-};
-
-static struct tegra_dsi_out buggy_olympus_dsi_out = {
-		.dsi_instance = 0,
-		.n_data_lanes = 2,
 		.refresh_rate = 60,
-		.lp_cmd_mode_freq_khz = 229500,
+		.lp_cmd_mode_freq_khz = 214500,
+		//.lp_cmd_mode_freq_khz = 20000,
+		.//lp_read_cmd_mode_freq_khz = 200000,
+		//.max_panel_freq_khz = 229500,
 		.panel_reset = true,	/* resend the init sequence on each resume */
 		.panel_reset_timeout_msec = 202,
 		.panel_has_frame_buffer = true,
@@ -371,6 +348,10 @@ static struct tegra_dsi_out buggy_olympus_dsi_out = {
 		.n_init_cmd = ARRAY_SIZE(dsi_olympus_init_cmd),
 		.dsi_suspend_cmd = dsi_suspend_cmd,
 		.n_suspend_cmd = ARRAY_SIZE(dsi_suspend_cmd),
+		//.panel_send_dc_frames = true,
+		//.hs_cmd_mode_supported = true,
+		//.hs_cmd_mode_on_blank_supported = true,
+		//.suspend_aggr = 1,
 		//.phy_timing = ???,
 };
 
@@ -402,7 +383,6 @@ static struct tegra_fb_data olympus_fb_data = {
 
 static struct tegra_dc_platform_data olympus_disp1_pdata = {
 	.flags			= TEGRA_DC_FLAG_ENABLED,
-	.emc_clk_rate	= 300000000,
 	.default_out	= &olympus_disp1_out,
 	.fb				= &olympus_fb_data,
 };
@@ -427,9 +407,9 @@ static int olympus_panel_setup_dc(void)
 	gpio_request(35, "disp_reset_n");
 	gpio_direction_output(35, 1);
 
-	tegra_gpio_enable(46);
+/*	tegra_gpio_enable(46);
 	gpio_request(46, "hdmi_5v_en");
-	gpio_direction_output(47, 1);
+	gpio_direction_output(46, 1);*/
 
 	return 0;
 }
@@ -475,7 +455,7 @@ static struct tegra_dc_out olympus_disp2_out = {
 	.flags = TEGRA_DC_OUT_HOTPLUG_HIGH,
 
 	.dcc_bus = 1,
-	.hotplug_gpio = TEGRA_GPIO_PN7,
+	.hotplug_gpio = HDMI_HPD_GPIO,
 
 	.max_pixclock	= KHZ2PICOS(148500),
 
@@ -487,16 +467,16 @@ static struct tegra_dc_out olympus_disp2_out = {
 };
 
 static struct tegra_fb_data olympus_disp2_fb_data = {
-	.win			= 0,
-	.xres			= 1280,
-	.yres			= 720,
-	.bits_per_pixel	= 32,
-	.flags			= TEGRA_FB_FLIP_ON_PROBE,
+		.win		= 0,
+		.xres		= 1366,
+		.yres		= 768,
+		.bits_per_pixel	= 32,
+		.flags		= TEGRA_FB_FLIP_ON_PROBE,
 };
 
 static struct tegra_dc_platform_data olympus_disp2_pdata = {
 	.flags			= 0,
-//	.emc_clk_rate	= ULONG_MAX,
+	.emc_clk_rate	= ULONG_MAX,
 	.default_out	= &olympus_disp2_out,
 	.fb				= &olympus_disp2_fb_data,
 };
@@ -553,6 +533,9 @@ struct early_suspend olympus_panel_early_suspender;
 static void olympus_panel_early_suspend(struct early_suspend *h)
 {
 	int i;
+
+	printk(KERN_INFO "%s: here...\n", __func__);
+	tegra2_enable_autoplug();
 	for (i = 0; i < num_registered_fb; i++)
 		fb_blank(registered_fb[i], FB_BLANK_POWERDOWN);
 
@@ -569,9 +552,10 @@ static void olympus_panel_late_resume(struct early_suspend *h)
 #ifdef CONFIG_TEGRA_CONVSERVATIVE_GOV_ON_EARLYSUPSEND
 	cpufreq_restore_default_gov();
 #endif
-
+	printk(KERN_INFO "%s: here...\n", __func__);
 	for (i = 0; i < num_registered_fb; i++)
 		fb_blank(registered_fb[i], FB_BLANK_UNBLANK);
+	tegra2_disable_autoplug();
 }
 #endif
 
@@ -584,10 +568,11 @@ int __init olympus_panel_init(void)
 	gpio_request(HDMI_HPD_GPIO, "hdmi_hpd");
 	gpio_direction_input(HDMI_HPD_GPIO);
 
-	// Lets check if we have buggy tegra
+	// Lets check if we have weak tegra
 	if ((s_MotorolaDispInfo >> 31) & 0x01) {
 		printk(KERN_INFO "%s: Bad news dude, have to lower refresh rate:/",__func__);
-			olympus_dsi_out.refresh_rate = 60;
+		//	olympus_dsi_out.panel_reset_timeout_msec = 250;
+		//	olympus_dsi_out.refresh_rate = 59;
 	}
 
 	olympus_panel_setup_dc();

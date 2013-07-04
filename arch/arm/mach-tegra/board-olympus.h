@@ -38,6 +38,7 @@ extern void __init olympus_backlight_init(void);
 extern void __init olympus_sensors_init(void);
 extern void __init olympus_camera_init(void);
 extern void __init olympus_usb_gadget_init(void);
+extern void __init olympus_clks_init(void);
 
 extern int olympus_mdm_ctrl_shutdown(void);
 extern int olympus_mdm_ctrl_peer_register(void (*)(void*),
@@ -54,7 +55,7 @@ extern void olympus_sec_init(void);
 extern void olympus_tcmd_init(void);
 
 extern void tegra_otg_set_mode(int);
-extern void sdhci_tegra_wlan_detect(void);
+
 int olympus_wifi_status_register(
 		void (*sdhcicallback)(int card_present, void *dev_id),
 		void *dev_id);
@@ -77,8 +78,23 @@ void tegra_system_power_off(void);
 
 #define SERIAL_NUMBER_STRING_LEN 17
 
+#define TEGRA_PROX_INT_GPIO		TEGRA_GPIO_PE1
+#define TEGRA_HF_NORTH_GPIO		TEGRA_GPIO_PS2
+#define TEGRA_HF_SOUTH_GPIO		TEGRA_GPIO_PS0
+#define TEGRA_HF_KICKSTAND_GPIO		TEGRA_GPIO_PW3
+#define TEGRA_VIBRATOR_GPIO		TEGRA_GPIO_PD0
+#define TEGRA_KXTF9_INT_GPIO		TEGRA_GPIO_PV3
+#define TEGRA_L3G4200D_IRQ_GPIO		TEGRA_GPIO_PH2
+#define TEGRA_AKM8975_IRQ_GPIO		TEGRA_GPIO_PE2
+#define TEGRA_AKM8975_RESET_GPIO	TEGRA_GPIO_PK5
+#define TEGRA_ADT7461_IRQ_GPIO		TEGRA_GPIO_PD1 //TEGRA_GPIO_PE5
+#define PWRUP_BAREBOARD            	0x00100000 /* Bit 20 */
+
 #define TOUCH_GPIO_RESET	TEGRA_GPIO_PF4
 #define TOUCH_GPIO_INTR		TEGRA_GPIO_PF5
+
+#define OLYMPUS_EXT_SDCARD_DETECT	TEGRA_GPIO_PI5
+#define MMC_OCR_1V8_MASK    0x8
 
 #endif
 

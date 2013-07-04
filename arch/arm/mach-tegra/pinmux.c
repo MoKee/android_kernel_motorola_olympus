@@ -302,6 +302,7 @@ int tegra_pinmux_set_tristate(enum tegra_pingroup pg,
 	unsigned long reg;
 	unsigned long flags;
 
+	printk(KERN_INFO "%s: setting %s to %s", __func__, pingroup_name(pg), tri_name(tristate));
 	if (pg < 0 || pg >=  TEGRA_MAX_PINGROUP)
 		return -ERANGE;
 
@@ -874,6 +875,57 @@ void tegra_pinmux_config_pullupdown_table(const struct tegra_pingroup_config *co
 					" to %s: %d\n",	pingroup_name(pingroup),
 					pupd_name(pupd), err);
 		}
+	}
+}
+
+void pinmux_show(void)
+{
+	int i;
+	char pg_name[5];
+	char pg_mux_name[24];
+	char pg_pupd_name[16];
+	char pg_tri_name[16];
+
+	for (i = 0; i < TEGRA_MAX_PINGROUP; i++) {
+		unsigned long tri;
+		unsigned long mux;
+		unsigned long pupd;
+
+		snprintf(pg_name, sizeof(pg_name), "%s",
+				 pingroups[i].name);
+
+		if (pingroups[i].mux_reg <= 0) {
+			snprintf(pg_mux_name, sizeof(pg_mux_name), "NONE");
+		} else {
+			mux = (pg_readl(pingroups[i].mux_reg) >>
+			       pingroups[i].mux_bit) & 0x3;
+			BUG_ON(pingroups[i].funcs[mux] == 0);
+			if (pingroups[i].funcs[mux] ==  TEGRA_MUX_INVALID) {
+				snprintf(pg_mux_name, sizeof(pg_mux_name), "INVALID");
+			} else if (pingroups[i].funcs[mux] & TEGRA_MUX_RSVD) {
+				snprintf(pg_mux_name, sizeof(pg_mux_name), "RSVD");
+			} else {
+				BUG_ON(!tegra_mux_names[pingroups[i].funcs[mux]]);
+				snprintf(pg_mux_name, sizeof(pg_mux_name), tegra_mux_names[pingroups[i].funcs[mux]]);
+			}
+		}
+		if (pingroups[i].pupd_reg <= 0) {
+			snprintf(pg_pupd_name, sizeof(pg_pupd_name), "NORMAL");
+		} else {
+			pupd = (pg_readl(pingroups[i].pupd_reg) >>
+				pingroups[i].pupd_bit) & 0x3;
+			snprintf(pg_pupd_name, sizeof(pg_pupd_name), pupd_name(pupd));
+		}
+
+		if (pingroups[i].tri_reg <= 0) {
+			snprintf(pg_tri_name, sizeof(pg_tri_name), "NORMAL");
+		} else {
+			tri = (pg_readl(pingroups[i].tri_reg) >>
+			       pingroups[i].tri_bit) & 0x1;
+
+			snprintf(pg_tri_name, sizeof(pg_tri_name), tri_name(tri));
+		}
+		printk(KERN_INFO "{ TEGRA_PINGROUP_%s, TEGRA_MUX_%s, TEGRA_PUPD_%s, TEGRA_TRI_%s },", pg_name, pg_mux_name, pg_pupd_name, pg_tri_name);
 	}
 }
 

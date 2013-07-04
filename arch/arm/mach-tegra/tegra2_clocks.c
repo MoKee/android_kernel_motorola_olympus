@@ -2115,17 +2115,9 @@ static const struct audio_sources {
 #endif
 	{ 0, 0 }
 };
-/*
-static struct clk tegra_clk_audio = {
-	.name      = "audio",
-	.inputs    = mux_audio_sync_clk,
-	.reg       = 0x38,
-	.max_rate  = 73728000,
-	.ops       = &tegra_audio_sync_clk_ops
-};*/
 
 static struct clk tegra_clk_audio = {
-	.name      = "soc-audio",
+	.name      = "audio",
 	.inputs    = mux_audio_sync_clk,
 	.reg       = 0x38,
 	.max_rate  = 73728000,
@@ -2146,7 +2138,7 @@ static struct clk tegra_clk_audio_2x = {
 };
 
 struct clk_lookup tegra_audio_clk_lookups[] = {
-	{ .con_id = "soc-audio", .clk = &tegra_clk_audio },
+	{ .con_id = "audio", .clk = &tegra_clk_audio },
 	{ .con_id = "audio_2x", .clk = &tegra_clk_audio_2x }
 };
 
@@ -2563,6 +2555,7 @@ struct clk_duplicate tegra_clk_duplicates[] = {
 	CLK_DUPLICATE("usbd", "tegra-otg", NULL),
 	CLK_DUPLICATE("hdmi", "tegradc.0", "hdmi"),
 	CLK_DUPLICATE("hdmi", "tegradc.1", "hdmi"),
+	CLK_DUPLICATE("dsia", "tegradc.0", "dsia"),
 	CLK_DUPLICATE("dsia", "tegradc.1", "dsia"),
 	CLK_DUPLICATE("pwm", "tegra_pwm.0", NULL),
 	CLK_DUPLICATE("pwm", "tegra_pwm.1", NULL),
@@ -2576,9 +2569,9 @@ struct clk_duplicate tegra_clk_duplicates[] = {
 	CLK_DUPLICATE("cop", "tegra-avp", "cop"),
 	CLK_DUPLICATE("vde", "tegra-aes", "vde"),
 	CLK_DUPLICATE("twd", "smp_twd", NULL),
+	CLK_DUPLICATE("sbc1", "spi_slave_tegra.0", NULL),
 	CLK_DUPLICATE("bsea", "tegra-aes", "bsea"),
-	CLK_DUPLICATE("usbd", "cpcap-otg", NULL), //added
-	CLK_DUPLICATE("sbc1", "spi_slave_tegra.0", NULL), //added
+	CLK_DUPLICATE("usbd", "cpcap-otg", NULL),
 };
 
 #define CLK(dev, con, ck)	\

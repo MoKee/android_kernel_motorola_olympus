@@ -63,7 +63,7 @@ static int disp_backlight_init(void)
 			__func__, ret);
 		return ret;
 	}
-	if ((ret = gpio_request(TEGRA_KEY_BACKLIGHT_EN_GPIO,
+/*	if ((ret = gpio_request(TEGRA_KEY_BACKLIGHT_EN_GPIO,
 			"key_backlight_en"))) {
 		pr_err("%s: gpio_request(%d, key_backlight_en) failed: %d\n",
 			__func__, TEGRA_KEY_BACKLIGHT_EN_GPIO, ret);
@@ -71,7 +71,7 @@ static int disp_backlight_init(void)
 	} else {
 		pr_info("%s: gpio_request(%d, key_backlight_en) success!\n",
 			__func__, TEGRA_KEY_BACKLIGHT_EN_GPIO);
-	}
+	}*/
 	if ((ret = gpio_direction_output(TEGRA_KEY_BACKLIGHT_EN_GPIO, 1))) {
 		pr_err("%s: gpio_direction_output(key_backlight_en) failed: %d\n",
 			__func__, ret);
@@ -94,6 +94,7 @@ static int disp_backlight_power_off(void)
     pr_info("%s: display backlight is powered off\n", __func__);
     gpio_set_value(TEGRA_BACKLIGHT_EN_GPIO, 0);
     gpio_set_value(TEGRA_KEY_BACKLIGHT_EN_GPIO, 0);
+    msleep_interruptible(25);
     return 0;
 }
 

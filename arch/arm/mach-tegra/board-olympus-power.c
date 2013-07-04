@@ -87,7 +87,26 @@ void olympus_pm_restart(char mode, const char *cmd)
 	outer_disable();
 	arm_machine_restart(mode,cmd);
 }
+/*
+void tegra_system_power_off(void)
+{
+	struct regulator *regulator = regulator_get(NULL, "soc_main");
 
+	if (!IS_ERR(regulator)) {
+		int rc;
+		regulator_enable(regulator);
+		rc = regulator_disable(regulator);
+		pr_err("%s: regulator_disable returned %d\n", __func__, rc);
+	} else {
+		pr_err("%s: regulator_get returned %ld\n", __func__,
+		       PTR_ERR(regulator));
+	}
+	local_irq_disable();
+	while (1) {
+		dsb();
+		__asm__ ("wfi");
+	}
+}*/
 
 void olympus_system_power_off(void)
 {
@@ -239,12 +258,6 @@ static struct platform_device cpcap_batt_device = {
         },
 };
 
-static struct platform_device cpcap_usb_device = {
-	.name           = "cpcap_usb",
-	.id             = -1,
-	.dev.platform_data = NULL,
-};
-
 static struct platform_device cpcap_audio_device = {
 	.name   = "cpcap_audio",
 	.id     = -1,
@@ -289,10 +302,12 @@ static struct platform_device *cpcap_devices[] = {
 	&cpcap_disp_button_led,
 	&cpcap_3mm5_device,
 	&cpcap_audio_device,
-//	&cpcap_usb_device,
 	&cpcap_usb_det_device,
 	&cpcap_batt_device,
-//	&cpcap_wdt_device,
+	/*
+#ifdef CONFIG_CPCAP_WATCHDOG
+	&cpcap_wdt_device,
+#endif*/
 };
 
 static int is_olympus_ge_p0(struct cpcap_device *cpcap)
@@ -426,7 +441,7 @@ struct cpcap_leds tegra_cpcap_leds = {
 	.rgb_led = {
 		.rgb_on = 0x0053,
 		.regulator = "sw5",  /* set to NULL below for products with RGB LED on B+ */
-		.regulator_macro_controlled = true,
+		.regulator_macro_controlled = false,
 	},
 };
 
@@ -624,29 +639,25 @@ struct cpcap_mode_value *cpcap_regulator_off_mode_values[] = {
 	{ .supply = name, .dev = device, }
 
 struct regulator_consumer_supply cpcap_sw1_consumers[] = {
-	REGULATOR_CONSUMER("sw1", NULL /* core */),
-	REGULATOR_CONSUMER("vdd_cpu", NULL),
+	REGULATOR_CONSUMER("vdd_cpu", NULL), /* core */
 };
 
 struct regulator_consumer_supply cpcap_sw2_consumers[] = {
-	REGULATOR_CONSUMER("sw2", NULL /* core */),
-	REGULATOR_CONSUMER("vdd_core", NULL),
-	REGULATOR_CONSUMER("vdd_aon", NULL),
+	REGULATOR_CONSUMER("vdd_core", NULL),/* core */
 };
 
 struct regulator_consumer_supply cpcap_sw3_consumers[] = {
-	REGULATOR_CONSUMER("sw3", NULL /* VIO */),
+	REGULATOR_CONSUMER("sw3", NULL ),/* VIO */
+	REGULATOR_SUPPLY("vddio_sys", NULL),
 };
 
 struct regulator_consumer_supply cpcap_sw4_consumers[] = {
-	REGULATOR_CONSUMER("sw4", NULL /* core */),
-//	REGULATOR_CONSUMER("vdd_aon", NULL),
+	REGULATOR_CONSUMER("vdd_aon", NULL),/* core */
 };
 
 struct regulator_consumer_supply cpcap_sw5_consumers[] = {
 	REGULATOR_SUPPLY("sw5", "button-backlight"),
 	REGULATOR_SUPPLY("sw5", "notification-led"),
-//	REGULATOR_CONSUMER("odm-kit-sw5", NULL),
 	REGULATOR_SUPPLY("sw5", NULL),
 };
 
@@ -667,6 +678,7 @@ struct regulator_consumer_supply cpcap_vhvio_consumers[] = {
 
 struct regulator_consumer_supply cpcap_vsdio_consumers[] = {
 	REGULATOR_CONSUMER("vsdio", NULL),
+
 };
 
 struct regulator_consumer_supply cpcap_vpll_consumers[] = {
@@ -683,6 +695,7 @@ struct regulator_consumer_supply cpcap_vwlan1_consumers[] = {
 
 struct regulator_consumer_supply cpcap_vwlan2_consumers[] = {
 	REGULATOR_CONSUMER("vwlan2", NULL),
+//	REGULATOR_CONSUMER("vddio_sdmmc", "sdhci-tegra.0"),
 	/* Powers the tegra usb block, cannot be named vusb, since
 	   this name already exists in regulator-cpcap.c. */
 	REGULATOR_CONSUMER("avdd_usb", NULL), /* usb */
@@ -715,7 +728,7 @@ static struct regulator_init_data cpcap_regulator[CPCAP_NUM_REGULATORS] = {
 			.max_uV			= 1475000,
 			.valid_ops_mask		= REGULATOR_CHANGE_STATUS |
                                                   REGULATOR_CHANGE_VOLTAGE,
-            .always_on		= 1,
+       //     .always_on		= 1,
 		},
 		.num_consumer_supplies	= ARRAY_SIZE(cpcap_sw1_consumers),
 		.consumer_supplies	= cpcap_sw1_consumers,
@@ -726,7 +739,7 @@ static struct regulator_init_data cpcap_regulator[CPCAP_NUM_REGULATORS] = {
 			.max_uV			= 1475000,
 			.valid_ops_mask		= REGULATOR_CHANGE_STATUS |
                                                   REGULATOR_CHANGE_VOLTAGE,
-            .always_on		= 1,
+          //  .always_on		= 1,
 		},
 		.num_consumer_supplies	= ARRAY_SIZE(cpcap_sw2_consumers),
 		.consumer_supplies	= cpcap_sw2_consumers,
@@ -737,7 +750,7 @@ static struct regulator_init_data cpcap_regulator[CPCAP_NUM_REGULATORS] = {
 			.max_uV			= 1875000,
 			.valid_ops_mask		= REGULATOR_CHANGE_STATUS |
                                                  REGULATOR_CHANGE_VOLTAGE,
-            .always_on		= 1,
+        //    .always_on		= 1,
 		},
 		.num_consumer_supplies	= ARRAY_SIZE(cpcap_sw3_consumers),
 		.consumer_supplies	= cpcap_sw3_consumers,
@@ -748,7 +761,7 @@ static struct regulator_init_data cpcap_regulator[CPCAP_NUM_REGULATORS] = {
 			.max_uV			= 1475000,
 			.valid_ops_mask		= REGULATOR_CHANGE_STATUS |
                                                   REGULATOR_CHANGE_VOLTAGE,
-            .always_on		= 1,
+         //   .always_on		= 1,
 		},
 		.num_consumer_supplies	= ARRAY_SIZE(cpcap_sw4_consumers),
 		.consumer_supplies	= cpcap_sw4_consumers,
@@ -820,7 +833,7 @@ static struct regulator_init_data cpcap_regulator[CPCAP_NUM_REGULATORS] = {
 			.min_uV			= 1500000,
 			.max_uV			= 3000000,
 			.valid_ops_mask		= REGULATOR_CHANGE_STATUS,
-            .always_on		= 1,
+         //   .always_on		= 1,
 		},
 		.num_consumer_supplies	= ARRAY_SIZE(cpcap_vsdio_consumers),
 		.consumer_supplies	= cpcap_vsdio_consumers,
@@ -831,7 +844,7 @@ static struct regulator_init_data cpcap_regulator[CPCAP_NUM_REGULATORS] = {
 			.max_uV			= 1800000,
 			.valid_ops_mask		= 0,
 			.apply_uV		= 1,
-            .always_on		= 1,
+       //     .always_on		= 1,
 		},
 		.num_consumer_supplies = ARRAY_SIZE(cpcap_vpll_consumers),
 		.consumer_supplies = cpcap_vpll_consumers,
@@ -888,7 +901,7 @@ static struct regulator_init_data cpcap_regulator[CPCAP_NUM_REGULATORS] = {
 			.min_uV			= 1800000,
 			.max_uV			= 2900000,
 			.valid_ops_mask		= 0,
-			.always_on		= 0, //1
+		//	.always_on		= 1,
 		},
 		.num_consumer_supplies	= ARRAY_SIZE(cpcap_vsimcard_consumers),
 		.consumer_supplies	= cpcap_vsimcard_consumers,
@@ -909,7 +922,7 @@ static struct regulator_init_data cpcap_regulator[CPCAP_NUM_REGULATORS] = {
 			.max_uV			= 3300000,
 			.valid_ops_mask		= REGULATOR_CHANGE_STATUS,
 			.apply_uV		= 1,
-			.always_on		= 0, //1
+		//	.always_on		= 1,
 		},
 		.num_consumer_supplies	= ARRAY_SIZE(cpcap_vusb_consumers),
 		.consumer_supplies	= cpcap_vusb_consumers,
@@ -960,10 +973,6 @@ struct cpcap_platform_data tegra_cpcap_data =
 		 CPCAP_HWCFG0_SEC_STBY_VCAM |
 		 CPCAP_HWCFG0_SEC_STBY_VCSI |
 		 CPCAP_HWCFG0_SEC_STBY_VHVIO |
-/*		 CPCAP_HWCFG0_SEC_STBY_VDIG |	//added
-		 CPCAP_HWCFG0_SEC_STBY_VDAC | //added
-		 CPCAP_HWCFG0_SEC_STBY_VRF1 | //added
-		 CPCAP_HWCFG0_SEC_STBY_VRF2 | //added*/
 		 CPCAP_HWCFG0_SEC_STBY_VPLL |
 		 CPCAP_HWCFG0_SEC_STBY_VSDIO),
 		(CPCAP_HWCFG1_SEC_STBY_VWLAN1 |    /* WLAN1 may be reset in olympus_setup_power(). */
@@ -974,8 +983,7 @@ struct cpcap_platform_data tegra_cpcap_data =
 };
 
 struct regulator_consumer_supply fixed_sdio_en_consumers[] = {
-	REGULATOR_SUPPLY("vddio_sdmmc", "sdhci-tegra.2"),
-
+	REGULATOR_SUPPLY("vddio_sd_slot", "sdhci-tegra.2"),
 };
 
 static struct regulator_init_data fixed_sdio_regulator = {
@@ -1024,38 +1032,95 @@ struct spi_board_info tegra_spi_devices[] __initdata = {
     },
 
 };
-
+extern void get_gpio_settings(void);
+extern void	pinmux_show(void);
 
 static void olympus_board_suspend(int lp_state, enum suspend_stage stg)
 {
+	int rc;
 	if ((lp_state == TEGRA_SUSPEND_LP1) && (stg == TEGRA_SUSPEND_BEFORE_CPU))
 		tegra_console_uart_suspend();
-	if (lp_state == TEGRA_SUSPEND_LP0)
+	if ((lp_state == TEGRA_SUSPEND_LP0) && (stg == TEGRA_SUSPEND_BEFORE_CPU))
 			{
-				tegra_gpio_disable(TEGRA_GPIO_PF3); //sdcard ext
+		printk(KERN_INFO "%s: entering...\n", __func__);
+#if 0
+				tegra_pinmux_set_tristate(5 /*TEGRA_PINGROUP_CDEV*/, TEGRA_TRI_TRISTATE);
+				tegra_pinmux_set_tristate(8 /*TEGRA_PINGROUP_CSUS*/, TEGRA_TRI_TRISTATE);
+				tegra_pinmux_set_tristate(9 /*TEGRA_PINGROUP_DAP1*/, TEGRA_TRI_TRISTATE);
+				tegra_pinmux_set_tristate(10/*TEGRA_PINGROUP_DAP2*/, TEGRA_TRI_TRISTATE);
+				tegra_pinmux_set_tristate(11/*TEGRA_PINGROUP_DAP3*/, TEGRA_TRI_TRISTATE);
+				tegra_pinmux_set_tristate(12/*TEGRA_PINGROUP_DAP4*/, TEGRA_TRI_TRISTATE);
+				tegra_pinmux_set_tristate(22 /*TEGRA_PINGROUP_GMC*/, TEGRA_TRI_TRISTATE);
+				tegra_pinmux_set_tristate(30/*TEGRA_PINGROUP_IRRX*/, TEGRA_TRI_TRISTATE);
+				tegra_pinmux_set_tristate(31/*TEGRA_PINGROUP_IRTX*/, TEGRA_TRI_TRISTATE);
+				tegra_pinmux_set_tristate(49 /*TEGRA_PINGROUP_LD2*/, TEGRA_TRI_TRISTATE);
+				tegra_pinmux_set_tristate(51 /*TEGRA_PINGROUP_LD4*/, TEGRA_TRI_TRISTATE);
+				tegra_pinmux_set_tristate(58 /*TEGRA_PINGROUP_LDI*/, TEGRA_TRI_TRISTATE);
+				tegra_pinmux_set_tristate(61/*TEGRA_PINGROUP_LHP2*/, TEGRA_TRI_TRISTATE);
+				tegra_pinmux_set_tristate(74/*TEGRA_PINGROUP_LSPI*/, TEGRA_TRI_TRISTATE);
+				tegra_pinmux_set_tristate(76/*TEGRA_PINGROUP_LVP1*/, TEGRA_TRI_TRISTATE);
+				tegra_pinmux_set_tristate(77 /*TEGRA_PINGROUP_LVS*/, TEGRA_TRI_TRISTATE);
+				tegra_pinmux_set_tristate(104/*TEGRA_PINGROUP_UCA*/, TEGRA_TRI_TRISTATE);
+				tegra_pinmux_set_tristate(105/*TEGRA_PINGROUP_UCB*/, TEGRA_TRI_TRISTATE);
+				tegra_pinmux_set_pullupdown(108/*TEGRA_PINGROUP_DDRC*/, TEGRA_PUPD_PULL_UP);
+
+				printk(KERN_INFO "%s: TEGRA_GPIO_PM2 = 0",__func__);
+				gpio_set_value(TEGRA_GPIO_PM2, 0);
+#endif
+				//pinmux_show();
+				get_gpio_settings();
+				printk(KERN_INFO "%s: exiting...\n", __func__);
 			};
+
 };
 
 static void olympus_board_resume(int lp_state, enum resume_stage stg)
 {
+	int rc;
 	if ((lp_state == TEGRA_SUSPEND_LP1) && (stg == TEGRA_RESUME_AFTER_CPU))
 		tegra_console_uart_resume();
-	if (lp_state == TEGRA_SUSPEND_LP0)
-			{
-				tegra_gpio_enable(TEGRA_GPIO_PF3);
-			};
+	if ((lp_state == TEGRA_SUSPEND_LP0) && (stg == TEGRA_RESUME_AFTER_CPU)) {
+		printk(KERN_INFO "%s: entering...\n", __func__);
+#if 0
+		printk(KERN_INFO "%s: TEGRA_GPIO_PM2 = 1",__func__);
+		gpio_set_value(TEGRA_GPIO_PM2, 1);
+
+		tegra_pinmux_set_tristate(5 /*TEGRA_PINGROUP_CDEV*/, TEGRA_TRI_NORMAL);
+		tegra_pinmux_set_tristate(8 /*TEGRA_PINGROUP_CSUS*/, TEGRA_TRI_NORMAL);
+		tegra_pinmux_set_tristate(9 /*TEGRA_PINGROUP_DAP1*/, TEGRA_TRI_NORMAL);
+		tegra_pinmux_set_tristate(10/*TEGRA_PINGROUP_DAP2*/, TEGRA_TRI_NORMAL);
+		tegra_pinmux_set_tristate(11/*TEGRA_PINGROUP_DAP3*/, TEGRA_TRI_NORMAL);
+		tegra_pinmux_set_tristate(12/*TEGRA_PINGROUP_DAP4*/, TEGRA_TRI_NORMAL);
+		tegra_pinmux_set_tristate(22 /*TEGRA_PINGROUP_GMC*/, TEGRA_TRI_NORMAL);
+		tegra_pinmux_set_tristate(30/*TEGRA_PINGROUP_IRRX*/, TEGRA_TRI_NORMAL);
+		tegra_pinmux_set_tristate(31/*TEGRA_PINGROUP_IRTX*/, TEGRA_TRI_NORMAL);
+		tegra_pinmux_set_tristate(49 /*TEGRA_PINGROUP_LD2*/, TEGRA_TRI_NORMAL);
+		tegra_pinmux_set_tristate(51 /*TEGRA_PINGROUP_LD4*/, TEGRA_TRI_NORMAL);
+		tegra_pinmux_set_tristate(58 /*TEGRA_PINGROUP_LDI*/, TEGRA_TRI_NORMAL);
+		tegra_pinmux_set_tristate(61/*TEGRA_PINGROUP_LHP2*/, TEGRA_TRI_NORMAL);
+		tegra_pinmux_set_tristate(74/*TEGRA_PINGROUP_LSPI*/, TEGRA_TRI_NORMAL);
+		tegra_pinmux_set_tristate(76/*TEGRA_PINGROUP_LVP1*/, TEGRA_TRI_NORMAL);
+		tegra_pinmux_set_tristate(77 /*TEGRA_PINGROUP_LVS*/, TEGRA_TRI_NORMAL);
+		tegra_pinmux_set_tristate(104/*TEGRA_PINGROUP_UCA*/, TEGRA_TRI_NORMAL);
+		tegra_pinmux_set_tristate(105/*TEGRA_PINGROUP_UCB*/, TEGRA_TRI_NORMAL);
+		tegra_pinmux_set_pullupdown(108/*TEGRA_PINGROUP_DDRC*/, TEGRA_PUPD_NORMAL);
+#endif
+		printk(KERN_INFO "%s: exiting...\n", __func__);
+	}
 };
 
 static struct tegra_suspend_platform_data olympus_suspend_data = {
-	.cpu_timer 	= 800,
+	.cpu_timer 		= 800,
 	.cpu_off_timer	= 600,
 	.suspend_mode	= TEGRA_SUSPEND_LP0,
-	.core_timer	= 1842,
+	.core_timer		= 1842,
 	.core_off_timer = 31,
 	.corereq_high	= true,
 	.sysclkreq_high	= true,
-	.board_suspend = olympus_board_suspend,
-	.board_resume = olympus_board_resume,
+	.combined_req 	= false,
+	.board_suspend	= olympus_board_suspend,
+	.board_resume 	= olympus_board_resume,
+
 /*	.cpu_timer	= 2000,
 	.cpu_off_timer	= 0,
 	.suspend_mode	= TEGRA_SUSPEND_LP0,
@@ -1065,21 +1130,23 @@ static struct tegra_suspend_platform_data olympus_suspend_data = {
 	.sysclkreq_high	= true,*/
 };
 
-#define WAKE_ANY 0x03
-#define WAKE_LOW 0x02
-#define WAKE_HI 0x01
-
 void __init olympus_suspend_init(void)
 {
 
-	tegra_pm_irq_set_wake_type(tegra_wake_to_irq(TEGRA_WAKE_GPIO_PL1), WAKE_LOW);
-	tegra_pm_irq_set_wake_type(tegra_wake_to_irq(TEGRA_WAKE_GPIO_PA0), WAKE_HI);
-	tegra_pm_irq_set_wake_type(tegra_wake_to_irq(TEGRA_WAKE_KBC_EVENT), WAKE_HI);
-	tegra_pm_irq_set_wake_type(tegra_wake_to_irq(TEGRA_WAKE_PWR_INT), WAKE_HI);
+/*	enable_irq_wake(wakepad_irq[2]);
+	enable_irq_wake(wakepad_irq[5]);
+	enable_irq_wake(wakepad_irq[6]);
+	enable_irq_wake(wakepad_irq[7]);
+	enable_irq_wake(wakepad_irq[17]);
+	enable_irq_wake(wakepad_irq[18]);
+	enable_irq_wake(wakepad_irq[24]);
 
-	tegra_pm_irq_set_wake_type(tegra_wake_to_irq(TEGRA_WAKE_GPIO_PU5), WAKE_ANY);
-	tegra_pm_irq_set_wake_type(tegra_wake_to_irq(TEGRA_WAKE_GPIO_PU6), WAKE_ANY);
-	tegra_pm_irq_set_wake_type(tegra_wake_to_irq(TEGRA_WAKE_GPIO_PV2), WAKE_ANY);
+	tegra_suspend_platform.wake_low 	= 4;		//0x0000004
+	tegra_suspend_platform.wake_high 	= 393248;	//0x0060020
+	tegra_suspend_platform.wake_any 	= 16777408;	//0x10000C0
+	tegra_suspend_platform.wake_enb 	= 17170660;	//0x10600E4
+
+	*/
 
 	tegra_init_suspend(&olympus_suspend_data);
 }
@@ -1112,21 +1179,6 @@ void __init olympus_power_init(void)
 		printk(KERN_INFO "%s: this SoC does not support LP0, switching to LP1\n", __func__);
 		olympus_suspend_data.suspend_mode = TEGRA_SUSPEND_LP1;
 	}
-
-	/* Enable CORE_PWR_REQ signal from T20. The signal must be enabled
-	 * before the CPCAP uC firmware is started. */
-	pmc_cntrl_0 = readl(IO_ADDRESS(TEGRA_PMC_BASE));
-	pmc_cntrl_0 |= 0x00000200;
-	writel(pmc_cntrl_0, IO_ADDRESS(TEGRA_PMC_BASE));
-
-/*	tegra_gpio_enable(154);
-	gpio_request(154, "usb_host_pwr_en");
-	gpio_direction_output(154,0);
-
-	tegra_gpio_enable(174);
-	gpio_request(174, "usb_data_en");
-	gpio_direction_output(174,0);
-	gpio_set_value(174,1);*/
 
 	/* CPCAP standby lines connected to CPCAP GPIOs on Etna P1B & Olympus P2 */
 	if ( HWREV_TYPE_IS_FINAL(system_rev) ||
