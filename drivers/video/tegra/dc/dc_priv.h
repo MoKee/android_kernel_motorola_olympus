@@ -34,6 +34,11 @@
 #include <mach/tegra_dc_ext.h>
 #include <mach/clk.h>
 
+#define SUPPORT_RAW_EDID_READS
+
+/* Define to give user space full control on HPD enable/disable */
+#define SUPPORT_US_CTRL_OF_HPD
+
 #include "dc_reg.h"
 
 #define WIN_IS_TILED(win)	((win)->flags & TEGRA_WIN_FLAG_TILED)
@@ -75,6 +80,12 @@ struct tegra_dc_out_ops {
 	void (*enable)(struct tegra_dc *dc);
 	/* disable output.  dc clocks are on at this point */
 	void (*disable)(struct tegra_dc *dc);
+	/* hold output.  keeps dc clocks on. */
+	void (*hold)(struct tegra_dc *dc);
+	/* release output.  dc clocks may turn off after this. */
+	void (*release)(struct tegra_dc *dc);
+	/* idle routine of output.  dc clocks may turn off after this. */
+	void (*idle)(struct tegra_dc *dc);
 	/* suspend output.  dc clocks are on at this point */
 	void (*suspend)(struct tegra_dc *dc);
 	/* resume output.  dc clocks are on at this point */
@@ -358,6 +369,8 @@ void tegra_dc_create_sysfs(struct device *dev);
 void tegra_dc_stats_enable(struct tegra_dc *dc, bool enable);
 bool tegra_dc_stats_get(struct tegra_dc *dc);
 
+void tegra_edid_get_raw_data(u8 *buf);
+
 /* defined in dc.c, used by dc_sysfs.c */
 u32 tegra_dc_read_checksum_latched(struct tegra_dc *dc);
 void tegra_dc_enable_crc(struct tegra_dc *dc);
@@ -366,8 +379,22 @@ void tegra_dc_disable_crc(struct tegra_dc *dc);
 void tegra_dc_set_out_pin_polars(struct tegra_dc *dc,
 				const struct tegra_dc_out_pin *pins,
 				const unsigned int n_pins);
-/* defined in dc.c, used in bandwidth.c */
+
+#ifdef SUPPORT_US_CTRL_OF_HPD
+int tegra_dc_hdmi_check_mode (const struct tegra_dc *dc, struct fb_videomode *mode);
+int tegra_dc_hdmi_check_hpd_state (struct tegra_dc *dc);
+#endif
+
+/* defined in dc.c, used in bandwidth.c and ext/dev.c */
 unsigned int tegra_dc_has_multiple_dc(void);
+
+/* defined in dc.c, used in dsi.c */
+void tegra_dc_clk_enable(struct tegra_dc *dc);
+void tegra_dc_clk_disable(struct tegra_dc *dc);
+
+/* defined in dc.c, used in nvsd.c and dsi.c */
+void tegra_dc_hold_dc_out(struct tegra_dc *dc);
+void tegra_dc_release_dc_out(struct tegra_dc *dc);
 
 /* defined in bandwidth.c, used in dc.c */
 void tegra_dc_clear_bandwidth(struct tegra_dc *dc);

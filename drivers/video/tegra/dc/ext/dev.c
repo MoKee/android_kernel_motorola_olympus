@@ -27,7 +27,7 @@
 #include <video/tegra_dc_ext.h>
 
 #include <mach/dc.h>
-#include <linux/nvmap.h>
+#include <mach/nvmap.h>
 #include <mach/tegra_dc_ext.h>
 
 /* XXX ew */
@@ -274,6 +274,41 @@ static int tegra_dc_ext_set_windowattr(struct tegra_dc_ext *ext,
 	return 0;
 }
 
+static void (*flip_callback)(void);
+static spinlock_t flip_callback_lock;
+static bool init_tegra_dc_flip_callback_called;
+
+static int __init init_tegra_dc_flip_callback(void)
+{
+	spin_lock_init(&flip_callback_lock);
+	init_tegra_dc_flip_callback_called = true;
+	return 0;
+}
+
+pure_initcall(init_tegra_dc_flip_callback);
+
+int tegra_dc_set_flip_callback(void (*callback)(void))
+{
+	WARN_ON(!init_tegra_dc_flip_callback_called);
+
+	spin_lock(&flip_callback_lock);
+	flip_callback = callback;
+	spin_unlock(&flip_callback_lock);
+
+	return 0;
+}
+EXPORT_SYMBOL(tegra_dc_set_flip_callback);
+
+int tegra_dc_unset_flip_callback()
+{
+	spin_lock(&flip_callback_lock);
+	flip_callback = NULL;
+	spin_unlock(&flip_callback_lock);
+
+	return 0;
+}
+EXPORT_SYMBOL(tegra_dc_unset_flip_callback);
+
 static void tegra_dc_ext_flip_worker(struct work_struct *work)
 {
 	struct tegra_dc_ext_flip_data *data =
@@ -327,6 +362,12 @@ static void tegra_dc_ext_flip_worker(struct work_struct *work)
 		tegra_dc_update_windows(wins, nr_win);
 		/* TODO: implement swapinterval here */
 		tegra_dc_sync_windows(wins, nr_win);
+		if (!tegra_dc_has_multiple_dc()) {
+			spin_lock(&flip_callback_lock);
+			if (flip_callback)
+				flip_callback();
+			spin_unlock(&flip_callback_lock);
+		}
 	}
 
 	for (i = 0; i < DC_N_WINDOWS; i++) {

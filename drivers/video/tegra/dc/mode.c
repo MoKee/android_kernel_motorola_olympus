@@ -247,9 +247,22 @@ int tegra_dc_program_mode(struct tegra_dc *dc, struct tegra_dc_mode *mode)
 	return 0;
 }
 
+static int panel_sync_rate;
+
+int tegra_dc_get_panel_sync_rate(void)
+{
+	return panel_sync_rate;
+}
+EXPORT_SYMBOL(tegra_dc_get_panel_sync_rate);
+
 int tegra_dc_set_mode(struct tegra_dc *dc, const struct tegra_dc_mode *mode)
 {
 	memcpy(&dc->mode, mode, sizeof(dc->mode));
+
+	if (dc->out->type == TEGRA_DC_OUT_RGB)
+		panel_sync_rate = tegra_dc_calc_refresh(mode);
+	else if (dc->out->type == TEGRA_DC_OUT_DSI)
+		panel_sync_rate = dc->out->dsi->rated_refresh_rate * 1000;
 
 	print_mode(dc, mode, __func__);
 
@@ -264,6 +277,15 @@ int tegra_dc_set_fb_mode(struct tegra_dc *dc,
 
 	if (!fbmode->pixclock)
 		return -EINVAL;
+
+#ifdef SUPPORT_US_CTRL_OF_HPD
+	if (dc->out->type == TEGRA_DC_OUT_HDMI) {
+		int hpd_state = tegra_dc_hdmi_check_hpd_state (dc);
+		int valid_mode = tegra_dc_hdmi_check_mode (dc, fbmode);
+		if (!hpd_state || !valid_mode)
+			return 0;
+		}
+#endif
 
 	mode.pclk = PICOS2KHZ(fbmode->pixclock) * 1000;
 	mode.h_sync_width = fbmode->hsync_len;
@@ -282,11 +304,16 @@ int tegra_dc_set_fb_mode(struct tegra_dc *dc,
 	} else {
 		calc_ref_to_sync(&mode);
 	}
+if (mode.h_active != 1366 ||  mode.v_active != 768) {
 	if (!check_ref_to_sync(&mode)) {
 		dev_err(&dc->ndev->dev,
 				"Display timing doesn't meet restrictions.\n");
+		dev_err(&dc->ndev->dev, "mode %dx%d mode pclk=%d fbmode pclk=%d "
+					"selection failed\n", mode.h_active, mode.v_active,
+					mode.pclk,fbmode->pixclock);
 		return -EINVAL;
 	}
+}
 	dev_info(&dc->ndev->dev, "Using mode %dx%d pclk=%d href=%d vref=%d\n",
 		mode.h_active, mode.v_active, mode.pclk,
 		mode.h_ref_to_sync, mode.v_ref_to_sync
